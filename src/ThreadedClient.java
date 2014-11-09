@@ -33,11 +33,11 @@ public class ThreadedClient {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
             String line = null;
-            while ((line = in.readLine()) != null) {
+            while ((line = in.readLine()) != null && !socket.isClosed()) {
                 System.out.println(">> " + line);
             }
 
-        } catch (Exception e) {
+        } catch (Exception e) { 
             e.printStackTrace();
         } finally {
             Util.closeResource(in);
@@ -56,19 +56,31 @@ public class ThreadedClient {
         public ConsoleThread(Socket socket) throws Exception {
             out = new PrintWriter(socket.getOutputStream());
         }
+        
+        public void send(String message) throws InterruptedException{
+        	out.println(message);
+			out.flush();
+            
+        }
 
         @Override
         public void run() {
             try {
                 String line;
-                while ((line = console.readLine()) != null) {
+                while (((line = console.readLine()) != null) && (!this.isInterrupted())) {
                     if (EXIT.equalsIgnoreCase(line)) {
                         //log.info("Closing chat");
                         System.out.println("Closing chat");
+                        Thread.currentThread().interrupt();
                         break;
                     }
-                    out.println(line);
-                    out.flush();
+                    try {
+						send(line);
+					} catch (InterruptedException e) {
+						// TODO: handle exception
+						e.printStackTrace();
+					}
+
                 }
             } catch (Exception e) {
                 e.printStackTrace();

@@ -62,90 +62,98 @@ public class ThreadedServer {
 
 
         // Отправка сообщения в сокет, связанный с клиентом
-        public void send(String message) {
-            out.println(message);
-            out.flush();
+        public void send(String message) throws InterruptedException{
+        	out.println(message);
+			out.flush();
+            
         }
 
         @Override
-        public void run() {
+        public void run(){
 
             // В отдельном потоке ждем данных от клиента
             try {
                 String line = null;
-                while ((line = in.readLine()) != null) {
-                    //log.info("Handler[" + number + "]<< " + line);
-                    System.out.println("Handler[" + number + "]<< " + line);
-                    String[] parse_line = line.split(" ");
-                    
-                    switch (parse_line[0]) {
-					case ".help":
-						
-						if(parse_line.length == 1){
-							send(".login [name]- залогиниться с именем, пока не залогинились, сообщения не получаем\n" +
-									".help — вывод списка команд\n" +
-									".private <user_to> — отправить приватное сообщение user_to\n" + 
-									".exit — выйти из чата"
-								);
-						} else {
-							send("for help use \".help\" without any parameters");
-						}
+                while (((line = in.readLine()) != null) && (!this.isInterrupted())) {
+                	try {
+                		System.out.println("Handler[" + number + "]<< " + line);
+                        String[] parse_line = line.split(" ");
+                        
+                        switch (parse_line[0]) {
+    					case ".help":
+    						
+    						if(parse_line.length == 1){
+    							send(".login [name]- залогиниться с именем, пока не залогинились, сообщения не получаем\n" +
+    									".help — вывод списка команд\n" +
+    									".private <user_to> — отправить приватное сообщение user_to\n" + 
+    									".exit — выйти из чата"
+    								);
+    						} else {
+    							send("for help use \".help\" without any parameters");
+    						}
 
-						break;
-					case ".exit":
-						if(parse_line.length == 1){
-							Util.closeResource(in);
-			                Util.closeResource(out);							
-						} else {
-							send("for exit use \".exit\" without any parameters");
-						}
-						
-					case ".private":
-						
-						for(ClientHandler handler: handlers){
-							if(handler.login.compareTo(parse_line[1]) == 0){
-								StringBuilder message = new StringBuilder();
-								message.append("private message from "  + login + ":");
-								for(int i = 2; i < parse_line.length; ++i){
-									message.append(" ");
-									message.append(parse_line[i]);
-								}
-								handler.send(message.toString());
-								send(message.toString());
-							}
-						}
-						
-						break;
+    						break;
+    					case ".exit":
+    						if(parse_line.length == 1){
+    							Util.closeResource(in);
+    			                Util.closeResource(out);
+    							Thread.currentThread().interrupt();
+    						} else {
+    							send("for exit use \".exit\" without any parameters");
+    						}
+    						
+    						break;
+    						
+    					case ".private":
+    						
+    						for(ClientHandler handler: handlers){
+    							if(handler.login.compareTo(parse_line[1]) == 0){
+    								StringBuilder message = new StringBuilder();
+    								message.append("private message from "  + login + ":");
+    								for(int i = 2; i < parse_line.length; ++i){
+    									message.append(" ");
+    									message.append(parse_line[i]);
+    								}
+    								handler.send(message.toString());
+    								send(message.toString());
+    							}
+    						}
+    						
+    						break;
 
-					default:
-						if (login != "") {
-							
-							server.broadcast(login + ": " + line);
-							
-						} else	{
-	                    	if(parse_line[0].compareTo(".login") == 0 && parse_line.length == 2){
-	                    		login = parse_line[1];
-	                    	} else {
-	                    		send("invalide command, use \".login [name]\"");
-	                    	}
-	                    }
-						break;
-					}
-                    
-                    
+    					default:
+    						if (login != "") {
+    							server.broadcast(login + ": " + line);
+    						} else	{
+    	                    	if(parse_line[0].compareTo(".login") == 0 && parse_line.length == 2){
+    	                    		login = parse_line[1];
+    	                    	} else {
+    	                    		send("invalide command, use \".login [name]\"");
+    	                    	}
+    	                    }
+    						break;
+    					}
+                        
+					} catch (InterruptedException e) {
+						// TODO: handle exception
+						Util.closeResource(in);
+		                Util.closeResource(out);
+					} 
+                	
                 }
+
             } catch (IOException e) {
                 //log.error("Failed to read from socket");
                 System.out.println("Failed to read from socket");
-            } finally {
-                Util.closeResource(in);
-                Util.closeResource(out);
-            }
+            } 
+
+            handlers.remove(this);
+            
         }
     }
 
     // рассылаем всем подписчикам
-    public void broadcast(String msg) {
+    public void broadcast(String msg) throws InterruptedException {
         //log.info("Broadcast to all: " + msg);
         System.out.println("Broadcast to all: " + msg);
         for (ClientHandler handler : handlers) {
