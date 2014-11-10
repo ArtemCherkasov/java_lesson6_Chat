@@ -1,17 +1,18 @@
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ThreadedServer {
 
     //protected static Logger log = LoggerFactory.getLogger("ThreadedServer");
     private static final int PORT = 19000;
     private static int counter = 0;
+    private ExecutorService service;
 
     // список обработчиков для клиентов
     private List<ClientHandler> handlers = new ArrayList<>();
@@ -25,6 +26,7 @@ public class ThreadedServer {
         //log.info("Starting server...");
         System.out.println("Starting server...");
         ServerSocket serverSocket = new ServerSocket(PORT);
+        service = Executors.newFixedThreadPool(2);
         while (true) {
 
             // блокируемся и ждем клиента
@@ -34,8 +36,8 @@ public class ThreadedServer {
 
             // создаем обработчик
             ClientHandler handler = new ClientHandler(this, socket, counter++);
-            handlers.add(handler);
-            handler.start();
+            service.submit(handler);
+        	handlers.add(handler);
         }
     }
 
@@ -53,13 +55,12 @@ public class ThreadedServer {
         // номер, чтобы различать потоки
         private int number;
 
-        public ClientHandler(ThreadedServer server, Socket socket, int counter) throws Exception {
+        public ClientHandler(ThreadedServer server, Socket socket, int counter) throws Exception{
             this.server = server;
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream());
             number = counter;
         }
-
 
         // Отправка сообщения в сокет, связанный с клиентом
         public void send(String message) throws InterruptedException{
@@ -146,9 +147,7 @@ public class ThreadedServer {
                 //log.error("Failed to read from socket");
                 System.out.println("Failed to read from socket");
             } 
-
             handlers.remove(this);
-            
         }
     }
 
@@ -159,6 +158,7 @@ public class ThreadedServer {
         for (ClientHandler handler : handlers) {
             if (handler.login != "") handler.send(msg);
         }
+
     }
 
 }
